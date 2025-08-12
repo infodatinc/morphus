@@ -40,7 +40,7 @@
 ### 1. Clone the repository
 
 ```bash
-curl -o MorphusInstaller.sh https://raw.githubusercontent.com/Lynette-Pinto/Advanced-File-Transfer-and-Data-Processing-System/main/MorphusInstaller.sh
+curl -o MorphusInstaller.sh https://raw.githubusercontent.com/infodatinc/morphus/main/MorphusInstaller.sh
 cd <script_location>
 chmod +x MorphusInstaller.sh
 ```
