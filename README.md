@@ -63,7 +63,8 @@ You will be prompted for:
     - Existing Database (Hostname, Port, Username, Password)
 - Docker Compose validation
   
-Note: If you choose to use an existing database, the application will attempt to connect using the provided details. It will automatically create a database named morphus if it does not already exist.
+Note: When using an existing database, the application will connect using the provided details and automatically create a database named morphus if it does not already exist.
+The current version does not support SSL certificates for database authentication; this capability will be introduced in a future release.
 
 ### 4. Version
 
