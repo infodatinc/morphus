@@ -220,4 +220,4 @@ Log files are stored in:
 
 ##  Contact
 
-For questions or access to the repository, contact: `< maintainer contact>`
+For questions or access to the repository, contact `Saloni Shah: saloni.shah@infodatinc.com`
