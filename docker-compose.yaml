@@ -56,33 +56,33 @@ services:
             start_period: 30s
         networks:
             - morphus
+        profiles: ["with-postgres"]
         restart: unless-stopped
 
-    mysql:
-        image: mysql:8.0.31
-        container_name: ${DOCKER_CONTAINER_NAME}-mysql
-        hostname: morphus-mysql
-        command: --default-authentication-plugin=mysql_native_password
-        environment:
-            MYSQL_ROOT_PASSWORD: ${MYSQL_DB_PASSWORD}
-            MYSQL_PASSWORD: ${MYSQL_DB_PASSWORD}
-            MYSQL_DATABASE: ${MYSQL_DB_NAME}
-        volumes:
-            - /var/morphus/database/mysql:/var/lib/mysql
-        networks:
-            - morphus
-        restart: unless-stopped
-        profiles: ["with-mysql"]
-        healthcheck:
-            test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_DB_PASSWORD}"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
-
-
+    # mysql:
+    #     image: mysql:8.0.31
+    #     container_name: ${DOCKER_CONTAINER_NAME}-mysql
+    #     hostname: morphus-mysql
+    #     command: --default-authentication-plugin=mysql_native_password
+    #     environment:
+    #         MYSQL_ROOT_PASSWORD: ${MYSQL_DB_PASSWORD}
+    #         MYSQL_PASSWORD: ${MYSQL_DB_PASSWORD}
+    #         MYSQL_DATABASE: ${MYSQL_DB_NAME}
+    #     volumes:
+    #         - morphus-mysql:/var/lib/mysql
+    #         - /var/morphus/certs:/app/certs:ro 
+    #     networks:
+    #         - morphus
+    #     restart: unless-stopped
+    #     profiles: ["with-mysql"]
+    #     healthcheck:
+    #         test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_DB_PASSWORD}"]
+    #         interval: 10s
+    #         timeout: 5s
+    #         retries: 5
 
     #---------------------------------------Liquibase----------------------------------------
- # liquibase:
+    # liquibase:
     #     container_name: ${DOCKER_CONTAINER_NAME_BE}-liquibase
     #     image: ${DOCKER_HUB_REPO_BE}-liquibase:${DOCKER_IMAGE_TAG_BE}
     #     env_file:
@@ -117,15 +117,13 @@ services:
                 max-size: "500m"
                 max-file: "1"
 
-    liquibase-depends-mysql:
+    liquibase-depends-postgres:
         extends:
             service: liquibase
         depends_on:
-            mysql:
+            postgres:
                 condition: service_healthy
-        profiles: ["with-mysql"]
-        
-
+        profiles: ["with-postgres"]
     #-------------------------------------Backend-------------------------------------
 
     api-gateway:
@@ -156,11 +154,11 @@ services:
         image: ${DOCKER_HUB_REPO_BE}-auth:${DOCKER_IMAGE_TAG_BE}
         environment:
             - SPRING_PROFILES_ACTIVE=default
-            - MYSQL_HOST=${MYSQL_DB_HOSTNAME}
-            - DB_USER=${MYSQL_DB_USER}
-            - DB_PASSWORD=${MYSQL_DB_PASSWORD}
-            - DB_DB=${MYSQL_DB_NAME}
-            - DB_PORT=3306
+            - POSTGRES_HOST=${AIRFLOW_DB_SERVER}
+            - DB_USER=${AIRFLOW_DB_USER}
+            - DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
+            - DB_DB=${BACKEND_DB_NAME}
+            - DB_PORT=5432
         env_file:
             - .env
         hostname: ${DOCKER_CONTAINER_NAME_BE}-auth
@@ -186,11 +184,11 @@ services:
         image: ${DOCKER_HUB_REPO_BE}-user-access-management:${DOCKER_IMAGE_TAG_BE}
         environment:
             - SPRING_PROFILES_ACTIVE=default
-            - MYSQL_HOST=${MYSQL_DB_HOSTNAME}
-            - DB_USER=${MYSQL_DB_USER}
-            - DB_PASSWORD=${MYSQL_DB_PASSWORD}
-            - DB_DB=${MYSQL_DB_NAME}
-            - DB_PORT=3306
+            - POSTGRES_HOST=${AIRFLOW_DB_SERVER}
+            - DB_USER=${AIRFLOW_DB_USER}
+            - DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
+            - DB_DB=${BACKEND_DB_NAME}
+            - DB_PORT=5432
         env_file:
             - .env
         hostname: ${DOCKER_CONTAINER_NAME_BE}-user-access-management
@@ -214,11 +212,11 @@ services:
         image: ${DOCKER_HUB_REPO_BE}-metadata:${DOCKER_IMAGE_TAG_BE}
         environment:
             - SPRING_PROFILES_ACTIVE=default
-            - MYSQL_HOST=${MYSQL_DB_HOSTNAME}
-            - DB_USER=${MYSQL_DB_USER}
-            - DB_PASSWORD=${MYSQL_DB_PASSWORD}
-            - DB_DB=${MYSQL_DB_NAME}
-            - DB_PORT=3306
+            - POSTGRES_HOST=${AIRFLOW_DB_SERVER}
+            - DB_USER=${AIRFLOW_DB_USER}
+            - DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
+            - DB_DB=${BACKEND_DB_NAME}
+            - DB_PORT=5432
         env_file:
             - .env
         hostname: ${DOCKER_CONTAINER_NAME_BE}-metadata
@@ -241,11 +239,11 @@ services:
         image: ${DOCKER_HUB_REPO_BE}-email-notification:${DOCKER_IMAGE_TAG_BE}
         environment:
             - SPRING_PROFILES_ACTIVE=default
-            - MYSQL_HOST=${MYSQL_DB_HOSTNAME}
-            - DB_USER=${MYSQL_DB_USER}
-            - DB_PASSWORD=${MYSQL_DB_PASSWORD}
-            - DB_DB=${MYSQL_DB_NAME}
-            - DB_PORT=3306
+            - POSTGRES_HOST=${AIRFLOW_DB_SERVER}
+            - DB_USER=${AIRFLOW_DB_USER}
+            - DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
+            - DB_DB=${BACKEND_DB_NAME}
+            - DB_PORT=5432
         env_file:
             - .env
         hostname: ${DOCKER_CONTAINER_NAME_BE}-email-notification
@@ -527,4 +525,3 @@ networks:
 
 volumes: {}
             
-
