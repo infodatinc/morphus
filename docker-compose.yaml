@@ -321,7 +321,7 @@ services:
             AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 5
             AIRFLOW__SCHEDULER__PARSE_MODE: lazy 
         healthcheck:
-            test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+            test: ["CMD-SHELL", "curl -fsS http://localhost:8080/airflow/health || curl -fsS http://localhost:8080/airflow/api/v1/health || exit 1"]
             interval: 30s
             timeout: 10s
             retries: 5
