@@ -43,9 +43,9 @@ services:
         container_name: ${DOCKER_CONTAINER_NAME_AF}-postgres
         hostname: morphus-airflow-postgres
         environment:
-            POSTGRES_USER: ${AIRFLOW_DB_USER}
-            POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
-            POSTGRES_DB: ${AIRFLOW_DB_NAME}
+            AIRFLOW_DB_USER: ${AIRFLOW_DB_USER}
+            AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+            AIRFLOW_DB_NAME: ${AIRFLOW_DB_NAME}
         volumes:
             - /var/morphus/postgres:/var/lib/postgresql/data
         healthcheck:
@@ -154,11 +154,11 @@ services:
         image: ${DOCKER_HUB_REPO_BE}-auth:${DOCKER_IMAGE_TAG_BE}
         environment:
             - SPRING_PROFILES_ACTIVE=default
-            - POSTGRES_HOST=${AIRFLOW_DB_SERVER}
-            - DB_USER=${AIRFLOW_DB_USER}
-            - DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
-            - DB_DB=${BACKEND_DB_NAME}
-            - DB_PORT=5432
+            - AIRFLOW_DB_SERVER=${AIRFLOW_DB_SERVER}
+            - AIRFLOW_DB_USER=${AIRFLOW_DB_USER}
+            - AIRFLOW_DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
+            - BACKEND_DB_NAME=${BACKEND_DB_NAME}
+            - AIRFLOW_DB_PORT=5432
         env_file:
             - .env
         hostname: ${DOCKER_CONTAINER_NAME_BE}-auth
@@ -185,10 +185,10 @@ services:
         environment:
             - SPRING_PROFILES_ACTIVE=default
             - POSTGRES_HOST=${AIRFLOW_DB_SERVER}
-            - DB_USER=${AIRFLOW_DB_USER}
-            - DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
-            - DB_DB=${BACKEND_DB_NAME}
-            - DB_PORT=5432
+            - AIRFLOW_DB_USER=${AIRFLOW_DB_USER}
+            - AIRFLOW_DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
+            - BACKEND_DB_NAME=${BACKEND_DB_NAME}
+            - AIRFLOW_DB_PORT=5432
         env_file:
             - .env
         hostname: ${DOCKER_CONTAINER_NAME_BE}-user-access-management
@@ -213,10 +213,10 @@ services:
         environment:
             - SPRING_PROFILES_ACTIVE=default
             - POSTGRES_HOST=${AIRFLOW_DB_SERVER}
-            - DB_USER=${AIRFLOW_DB_USER}
-            - DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
-            - DB_DB=${BACKEND_DB_NAME}
-            - DB_PORT=5432
+            - AIRFLOW_DB_USER=${AIRFLOW_DB_USER}
+            - AIRFLOW_DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
+            - BACKEND_DB_NAME=${BACKEND_DB_NAME}
+            - AIRFLOW_DB_PORT=5432
         env_file:
             - .env
         hostname: ${DOCKER_CONTAINER_NAME_BE}-metadata
@@ -240,9 +240,9 @@ services:
         environment:
             - SPRING_PROFILES_ACTIVE=default
             - POSTGRES_HOST=${AIRFLOW_DB_SERVER}
-            - DB_USER=${AIRFLOW_DB_USER}
-            - DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
-            - DB_DB=${BACKEND_DB_NAME}
+            - AIRFLOW_DB_USER=${AIRFLOW_DB_USER}
+            - AIRFLOW_DB_PASSWORD=${AIRFLOW_DB_PASSWORD}
+            - BACKEND_DB_NAME=${BACKEND_DB_NAME}
             - DB_PORT=5432
         env_file:
             - .env
