@@ -32,12 +32,6 @@ DOCKER_IMAGE_TAG_UI="1.1"
 DOCKER_IMAGE_TAG_AIRFLOW="1.0"
 AIRFLOW_IMG_NAME="apache/airflow:2.9.2"
 
-# Database Variables
-MYSQL_DB_USER="root"
-MYSQL_DB_PASSWORD="password"
-MYSQL_DB_NAME="morphus"
-MYSQL_DB_PORT=3306
-MYSQL_DB_HOSTNAME="morphus-mysql"
 
 # Airflow Variables
 AIRFLOW_DB_DIALECT="postgresql"
@@ -46,7 +40,10 @@ AIRFLOW_DB_USER="postgres"
 AIRFLOW_DB_PASSWORD="password123"
 AIRFLOW_DB_SERVER="morphus-airflow-postgres"
 AIRFLOW_DB_PORT=5432
-AIRFLOW_DB_NAME="postgres"
+AIRFLOW_DB_NAME="morphus_postgres"
+BACKEND_DB_NAME="morphus"
+
+
 REDIS_PORT=6379
 AIRFLOW_UID=5000
 AIRFLOW_WEB_SECRET="your_secret_key_here"
@@ -55,6 +52,7 @@ AIRFLOW_USER_USERNAME="airflow"
 AIRFLOW_USER_PASSWORD="airflow"
 AIRFLOW_DAG_JSON_DATA_DIR="./dag_json_data"
 UI_PORT=80
+
 
 
 
@@ -72,6 +70,7 @@ AIRFLOW_DB_PASSWORD=$AIRFLOW_DB_PASSWORD
 AIRFLOW_DB_SERVER=$AIRFLOW_DB_SERVER
 AIRFLOW_DB_PORT=$AIRFLOW_DB_PORT
 AIRFLOW_DB_NAME=$AIRFLOW_DB_NAME
+BACKEND_DB_NAME=$BACKEND_DB_NAME
 AIRFLOW_IMG_NAME=$AIRFLOW_IMG_NAME
 AIRFLOW_PROJ_DIR=$AIRFLOW_DIR
 REDIS_PORT=$REDIS_PORT
@@ -82,11 +81,9 @@ AIRFLOW_UID=$AIRFLOW_UID
 AIRFLOW_USER_USERNAME=$AIRFLOW_USER_USERNAME
 AIRFLOW_USER_PASSWORD=$AIRFLOW_USER_PASSWORD
 AIRFLOW_DAG_JSON_DATA_DIR=$AIRFLOW_DAG_JSON_DATA_DIR
-MYSQL_DB_NAME=$MYSQL_DB_NAME
-MYSQL_DB_HOSTNAME=$MYSQL_DB_HOSTNAME
-MYSQL_DB_PORT=$MYSQL_DB_PORT
-MYSQL_DB_USER=$MYSQL_DB_USER
-MYSQL_DB_PASSWORD=$MYSQL_DB_PASSWORD
+
+
+
 DOCKER_HUB_REPO_UI=$DOCKER_HUB_REPO-ui
 DOCKER_HUB_REPO_BE=$DOCKER_HUB_REPO-back-end
 DOCKER_HUB_REPO_AIRFLOW=$DOCKER_HUB_REPO-airflow
@@ -100,7 +97,7 @@ DOCKER_CONTAINER_NAME_AF=$DOCKER_CONTAINER_NAME_AF
 UI_PORT=$UI_PORT
 SPRING_PROFILES_ACTIVE=default
 AIRFLOW_IMAGE_NAME=$AIRFLOW_IMG_NAME
-ENABLE_MYSQL=$ENABLE_MYSQL
+ENABLE_POSTGRES=$ENABLE_POSTGRES
 EOF
 }
 
@@ -160,10 +157,10 @@ fetch_latest_release_info() {
 
 
 prompt_db_details() {
-    read -rp "Database Hostname: " MYSQL_DB_HOSTNAME
-    read -rp "Database Port: " MYSQL_DB_PORT
-    read -rp "Database Username: " MYSQL_DB_USER
-    read -rsp "Database Password: " MYSQL_DB_PASSWORD; echo
+    read -rp "Database Hostname: " AIRFLOW_DB_SERVER
+    read -rp "Database Port: " AIRFLOW_DB_PORT
+    read -rp "Database Username: " AIRFLOW_DB_USER
+    read -rsp "Database Password: " AIRFLOW_DB_PASSWORD; echo
 }
 
 
@@ -236,7 +233,7 @@ sudo mkdir -p \
   "$APP_DIR/logs/backend/user-access-management" \
   "$APP_DIR/logs/backend/metadata" \
   "$APP_DIR/logs/backend/email-notification" \
-  "$APP_DIR/database/mysql"
+#  "$APP_DIR/database/AIRFLOW_DB_PORT"
 sudo chmod -R 777 "$APP_DIR"
 
 # Create Airflow directories
@@ -269,7 +266,7 @@ elif ! grep -q "CURRENT_VERSION=" "$VERSION_FILE"; then
     echo "CURRENT_VERSION=$VERSION_CHOICE" | sudo tee -a "$VERSION_FILE" > /dev/null
 fi
 
-DOCKER_COMPOSE_URL="https://raw.githubusercontent.com/$REPO/main/docker-compose.yaml"
+DOCKER_COMPOSE_URL="https://raw.githubusercontent.com/$REPO/compose_updates/docker-compose.yaml"
 TARGET_FILE="$APP_DIR/docker-compose.yaml"
 
 echo "Downloading and setting up the required files..."
@@ -281,21 +278,32 @@ fi
 
 # Collect database configuration for Airflow Setup
 
-echo "1. Create New MySQL Database"
-echo "2. Use Existing MySQL Database"
+echo "1. Create New Postgres Database"
+echo "2. Use Existing Postgres Database"
 echo "Please choose one of the option:"
 read -r db_option
 
 MAX_RETRIES=3
+psql_cmd() {
+  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql \
+    -h "$AIRFLOW_DB_SERVER" \
+    -p "${AIRFLOW_DB_PORT:-5432}" \
+    -U "$AIRFLOW_DB_USER" \
+    -d postgres \
+    -v ON_ERROR_STOP=1 \
+    -Atqc "$1"
+}
+
+
 for attempt in $(seq 1 $MAX_RETRIES); do
     if [[ "$db_option" == "1" ]]; then
         echo
         echo "New databases will be created with:"
-        echo "Host: $MYSQL_DB_HOSTNAME  Port: $MYSQL_DB_PORT"
-        echo "User: $MYSQL_DB_USER"
+        echo "Host: $AIRFLOW_DB_SERVER  Port: $AIRFLOW_DB_PORT"
+        echo "User: $AIRFLOW_DB_USER"
         echo "Password can be changed later."
         echo ""
-        ENABLE_MYSQL=true
+        ENABLE_POSTGRES=true
         write_env_file
         break
 
@@ -303,11 +311,9 @@ for attempt in $(seq 1 $MAX_RETRIES); do
         echo
         prompt_db_details
         echo "Attempt $attempt/$MAX_RETRIES: Checking database connection..."
-       if mysql -h"$MYSQL_DB_HOSTNAME" -P"$MYSQL_DB_PORT" -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" \
-        -e "CREATE DATABASE IF NOT EXISTS \`$MYSQL_DB_NAME\`;" 2>/dev/null; then
-
+        if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "SELECT 1;" >/dev/null 2>&1; then
             echo "Connection successful to database host."
-            ENABLE_MYSQL=false
+            ENABLE_POSTGRES=false
             write_env_file
             break
         else
@@ -318,7 +324,12 @@ for attempt in $(seq 1 $MAX_RETRIES); do
                 exit 1
             fi
         fi
-
+        if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'"; then
+            PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
+            echo "Created database: $BACKEND_DB_NAME"
+        else
+            echo "Database already exists: $BACKEND_DB_NAME"
+        fi
     else
         echo "Invalid choice. Select 1 or 2."
         read -r db_option
@@ -446,18 +457,56 @@ start)
 echo "Starting Morphus..."
 cd "$APP_DIR" || exit 1
 
-if [ "$ENABLE_MYSQL" = true ]; then
-    docker compose --profile with-mysql up -d mysql liquibase 2>/dev/null
+if [[ "$ENABLE_POSTGRES"  == "true" ]]; then
+  # 1) Start Postgres only
+  docker compose --profile with-postgres up -d postgres 2>/dev/null
+
+  # 2) Wait for Postgres readiness (inside container)
+  echo "Waiting for Postgres to become ready..."
+  for i in {1..30}; do
+    if docker exec "$AIRFLOW_DB_SERVER" pg_isready -h localhost -p 5432 -U "$AIRFLOW_DB_USER" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+    if [ "$i" -eq 30 ]; then
+      echo "Postgres did not become ready in time."
+      exit 1
+    fi
+  done
+
+  # 3) Ensure backend DB exists (check OUTPUT, not exit code)
+  echo "Ensuring backend database '$BACKEND_DB_NAME' exists..."
+  if ! docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
+      psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d postgres -tAc \
+      "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'" | grep -q 1; then
+    docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
+      psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
+      "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
+  fi
+
+  # 4) Now start Liquibase (it can target the backend DB)
+  docker compose --profile with-postgres up -d liquibase 2>/dev/null
+  echo "Backend DB check complete."
+
 else
-    docker compose up -d liquibase 2>/dev/null
+  # External Postgres path
+
+  echo "Ensuring backend database '$BACKEND_DB_NAME' exists on external server..."
+  if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+      -U "$AIRFLOW_DB_USER" -d postgres -tAc \
+      "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'" | grep -q 1; then
+    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+      -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
+      "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
+  fi
+
+  # Start Liquibase (no profile here)
+  docker compose up -d liquibase 2>/dev/null
+  echo "Backend DB check complete."
 fi
 
-echo " Waiting for Liquibase to finish..."
-if [ "$ENABLE_MYSQL" = true ]; then
-    docker wait morphus-liquibase
-else
-    docker compose ps -q liquibase | xargs docker wait
-fi
+# Wait for Liquibase completion if you rely on it before app start
+docker wait morphus-liquibase >/dev/null 2>&1 || true
 
 echo "Starting Morphus services..."
 if ! docker compose up -d \
@@ -474,15 +523,15 @@ if [ ! -f "$ORG_MARKER" ]; then
 echo "Checking if organization '$org_name' exists..."
 echo -e "\nFirst time start detected. Creating organization in the database..."
 
-if [[ "$ENABLE_MYSQL" == "true" ]]; then
+if [[ "$ENABLE_POSTGRES" == "true" ]]; then
 for i in {1..30}; do
-if docker exec morphus-mysql mysqladmin ping -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" --silent 2>/dev/null; then
-    break
+if docker exec "$AIRFLOW_DB_SERVER" pg_isready -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" >/dev/null 2>&1; then
+  break
 else
-    sleep 2
+  sleep 2
 fi
 if [ "$i" -eq 30 ]; then
-    echo "MySQL did not become ready in time."
+    echo "Postgres did not become ready in time."
     exit 1
 fi
 done
@@ -494,22 +543,30 @@ read -rp "Confirm organization name is '$org_name'? (y/n): " confirm_org_name
 [[ "$confirm_org_name" == "y" ]] && break
 echo "Please re-enter the details."
 done
-org_exists_query="SELECT COUNT(*) FROM morphus.organizations WHERE name='$org_name';"
-if [[ "$ENABLE_MYSQL" == "true" ]]; then
-org_exists=$(docker exec "$MYSQL_DB_HOSTNAME" mysql -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" -N -e "$org_exists_query" 2>/dev/null)
+org_exists_query="SELECT COUNT(*) AS org_count FROM public.organizations WHERE name = '$org_name';"
+if [[ "$ENABLE_POSTGRES" == "true" ]]; then
+#org_exists=$(docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p ${AIRFLOW_DB_PORT} -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -Atq -c "$org_exists_query" 2>/dev/null)
+out=$(docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -tAc "$org_exists_query") || { echo "Query failed"; exit 1; }
 else
-org_exists=$(mysql -h"$MYSQL_DB_HOSTNAME" -P"$MYSQL_DB_PORT" -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" -N -e "$org_exists_query" 2>/dev/null)
+out=$(PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -tAc "$org_exists_query") || { echo "Query failed"; exit 1; }
 fi
+
+org_exists=$(echo "$out" | tr -d '[:space:]')
+org_exists=${org_exists:-0}
 
 if [[ "$org_exists" -eq 0 ]]; then
 echo "Registering organization in the database..."
-register_org_query="INSERT INTO morphus.organizations (id, name, active) VALUES ('$org_name', '$org_name', b'1');"
+register_org_query="INSERT INTO public.organizations (id, name, active) VALUES ('$org_name', '$org_name', TRUE);"
 
-if [[ "$ENABLE_MYSQL" == "true" ]]; then
-docker exec "$MYSQL_DB_HOSTNAME" mysql -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" -e "$register_org_query" 2>/dev/null
+if [[ "$ENABLE_POSTGRES" == "true" ]]; then
+#docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d "${BACKEND_DB_NAME:-postgres}" -v ON_ERROR_STOP=1 -c "$register_org_query" >/dev/null 2>&1
+docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
+ 
 else
-mysql -h"$MYSQL_DB_HOSTNAME" -P"$MYSQL_DB_PORT" -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" -e "$register_org_query" 2>/dev/null
+PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
+  
 fi
+
 if [[ $? -eq 0 ]]; then
 echo "Organization registered successfully."
 echo "$org_name" | sudo tee "$ORG_MARKER" >/dev/null
@@ -524,6 +581,7 @@ else
 echo "Organization already created. Skipping organization creation."
 org_name=$(cat "$ORG_MARKER")
 fi
+
 if [[ ! -f "$USER_MARKER" ]]; then
 echo "Please enter the below details for the admin"
 read -rp "First Name: " first_name
@@ -540,31 +598,31 @@ echo "Please try again."
 fi
 done
 echo "Registering admin user in the database.."
-register_user_query="INSERT INTO morphus.users (id, first_name, last_name, username, email, organization_id, password, active, deleted, is_new_user, is_owner) VALUES ('demo-id-1', '$first_name', '$last_name', '$email_address', '$email_address', '$org_name', '\$2a\$12\$GTDgS7SlX1j6v8cC6q/o7uUAZqhrNb1i5wKKXDFCkTEwJTTZscoTu', b'1', b'0', b'1', b'1');"
+register_user_query="INSERT INTO public.users (id, first_name, last_name, username, email, organization_id, password, active, deleted, is_new_user, is_owner) VALUES ('demo-id-1', '$first_name', '$last_name', '$email_address', '$email_address', '$org_name', '\$2a\$12\$GTDgS7SlX1j6v8cC6q/o7uUAZqhrNb1i5wKKXDFCkTEwJTTZscoTu', TRUE, FALSE, TRUE, TRUE);"
 
-if [ "$ENABLE_MYSQL" = "true" ]; then
-  echo "Registering user using Docker MySQL container..."
+if [ "$ENABLE_POSTGRES" = "true" ]; then
+echo "Registering user using Docker Postgres container..."
 
-  if docker exec "${MYSQL_DB_HOSTNAME}" mysql -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" -e "$register_user_query" 2>/dev/null; then
-    echo "Admin user '$email_address' registered successfully with default password 'Welcome@123'."
-    echo "You can reset the password from the UI using the 'Forgot password' option."
-    echo "$email_address" | sudo tee "$USER_MARKER" >/dev/null
-  else
-    echo " Failed to register user '$email_address' using Docker container. Check DB connection and permissions."
-    exit 1
-  fi
+
+if docker exec -i -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d "${BACKEND_DB_NAME:-postgres}"  --single-transaction -v ON_ERROR_STOP=1  <<< "$register_user_query"; then
+echo "Admin user '$email_address' registered successfully with default password 'Welcome@123'."
+echo "You can reset the password from the UI using the 'Forgot password' option."
+echo "$email_address" | sudo tee "$USER_MARKER" >/dev/null
+else
+echo " Failed to register user '$email_address' using Docker container. Check DB connection and permissions."
+exit 1
+fi
 
 else
-  echo "Registering user using native MySQL..."
-
-  if mysql -h"$MYSQL_DB_HOSTNAME" -P"$MYSQL_DB_PORT" -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" -e "$register_user_query" 2>/dev/null; then
-    echo "Admin user '$email_address' registered successfully with default password 'Welcome@123'."
-    echo "You can reset the password from the UI using the 'Forgot password' option."
-    echo "$email_address" | sudo tee "$USER_MARKER" >/dev/null
-  else
-    echo " Failed to register user '$email_address' using native MySQL. Check DB connection and permissions."
-    exit 1
-  fi
+echo "Registering user using native Postgres..."
+if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d "${BACKEND_DB_NAME:-postgres}" --single-transaction -v ON_ERROR_STOP=1 <<< "$register_user_query"; then
+echo "Admin user '$email_address' registered successfully with default password 'Welcome@123'."
+echo "You can reset the password from the UI using the 'Forgot password' option."
+echo "$email_address" | sudo tee "$USER_MARKER" >/dev/null
+else
+echo " Failed to register user '$email_address' using native Postgres. Check DB connection and permissions."
+exit 1
+fi
 fi
 
 else
@@ -605,7 +663,7 @@ CURRENT_VERSION=$(sudo awk -F'=' '/CURRENT_VERSION/{print $2}' "$VERSION_FILE" 2
 [[ -z "$CURRENT_VERSION" ]] && echo "No version file found (.ver). Assuming fresh install."
 
 # --- Fetch latest release info ---
-echo "Fetching latest release info..."
+echo "Fetching latest release info."
 
 release=$(curl -s "https://api.github.com/repos/$REPO/releases" \
   | jq -r 'map(select(.prerelease == false)) | sort_by(.tag_name) | last')
@@ -629,8 +687,8 @@ echo "Updating to $LATEST_VERSION..."
 BACKUP_DIR="$BACKUP_BASE/$CURRENT_VERSION"
 sudo mkdir -p "$BACKUP_DIR"
 
-# Backup MySQL DB
-sudo sh -c "docker exec $MYSQL_DB_HOSTNAME mysqldump -u "MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" $MYSQL_DB_NAME > '$BACKUP_DIR/morphus_db.sql'" 2>/dev/null
+# Backup Postgres DB
+sudo sh -c "docker exec -e PGPASSWORD=\"$AIRFLOW_DB_PASSWORD\" \"$AIRFLOW_DB_SERVER\" pg_dump -h localhost -p 5432 -U \"$AIRFLOW_DB_USER\" -d \"$BACKEND_DB_NAME\" -Fc > \"$BACKUP_DIR/morphus_db.dump\"" 2>/dev/null
 
 # --- Stop containers ---
 echo "Stopping Morphus..."
@@ -675,7 +733,7 @@ CURRENT_VERSION=$LATEST_VERSION
 EOL
 
 # --- Download updated docker-compose ---
-DOCKER_COMPOSE_URL="https://raw.githubusercontent.com/$REPO/main/docker-compose.yaml"
+DOCKER_COMPOSE_URL="https://raw.githubusercontent.com/$REPO/compose_updates/docker-compose.yaml"
 echo "Downloading updates..."
 if ! curl -fsSL "$DOCKER_COMPOSE_URL" -o "$TARGET_FILE"; then
     echo "Failed to download updates. Please check the network connection."
@@ -695,8 +753,8 @@ fi
 # --- Restart containers ---
 echo "Starting Morphus..."
 cd "$APP_DIR" || exit 1
-if [ "$ENABLE_MYSQL" = true ]; then
-    if docker compose --profile with-mysql up -d mysql liquibase 2>/dev/null; then
+if [ "$ENABLE_POSTGRES" = true ]; then
+    if docker compose --profile with-postgres up -d postgres liquibase 2>/dev/null; then
         :
     else
         echo "Failed to start Morphus"
@@ -785,8 +843,8 @@ BACKUP_DIR="$BACKUP_BASE/$CURRENT_VERSION"
 # Restart containers
 echo "Restarting Morphus..."
 cd "$APP_DIR" || exit 1
-if [ "$ENABLE_MYSQL" = true ]; then
-    if docker compose --profile with-mysql up -d mysql liquibase 2>/dev/null; then
+if [ "$ENABLE_POSTGRES" = true ]; then
+    if docker compose --profile with-postgres up -d postgres liquibase 2>/dev/null; then
         :
     else
         echo "Failed to start Morphus"
@@ -807,7 +865,7 @@ redis postgres \
 airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer \
 web morphus-ui-angular >/dev/null 2>&1; then
 check_service_status
-sudo docker exec $MYSQL_DB_HOSTNAME mysqldump -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" $MYSQL_DB_NAME | sudo tee "$BACKUP_DIR/morphus_db.sql" >/dev/null 2>&1
+sudo docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" pg_dump -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" --format=p --no-owner --no-privileges | sudo tee "$BACKUP_DIR/morphus_db.sql" >/dev/null 2>&1
 echo "Rollback completed. Morphus $PREVIOUS_VERSION is up and running"
 else
 echo "Rollback failed."
@@ -838,17 +896,21 @@ docker ps -a --format "{{.Names}}" | grep '^morphus-' | xargs -r docker rm >/dev
 docker volume rm $(docker volume ls -q | grep "^morphus") >/dev/null 2>&1
 docker network ls --format "{{.Name}}" | grep '^morphus' | xargs -r docker network rm >/dev/null 2>&1
 docker system prune -af --volumes >/dev/null 2>&1
-docker rmi $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E '^(morphus-|mysql|redis|postgres|apache/airflow)') >/dev/null 2>&1 || true
+docker rmi $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E '^(morphus-|redis|postgres|apache/airflow)') >/dev/null 2>&1 || true
 
 # Remove directories
 sudo chown -R $(whoami):$(whoami) "$APP_DIR" "$INSTALL_DIR" "$AIRFLOW_DIR" 2>/dev/null || true
 sudo rm -rf "$APP_DIR" "$INSTALL_DIR" "$AIRFLOW_DIR" "$BACKUP_BASE" /usr/local/bin/morphus || true
 
-if [[ "$ENABLE_MYSQL" != "true" ]]; then
-mysql -h"$MYSQL_DB_HOSTNAME" -P"$MYSQL_DB_PORT" -u"$MYSQL_DB_USER" -p"$MYSQL_DB_PASSWORD" \
-    -e "DROP DATABASE IF EXISTS \`$MYSQL_DB_NAME\`;" 2>/dev/null && echo "Database dropped."
-LOCAL_MYSQL_DATA_DIR="/var/lib/mysql/$MYSQL_DB_NAME"
-sudo rm -rf "$LOCAL_MYSQL_DATA_DIR"
+if [[ "$ENABLE_POSTGRES" != "true" ]]; then
+  # terminate any sessions on the target DB
+  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$BACKEND_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+  # drop the database if it exists
+  if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$BACKEND_DB_NAME\";" >/dev/null 2>&1; then
+    echo "Database dropped."
+  else
+    echo "Failed to drop database: $BACKEND_DB_NAME"
+  fi
 fi
 echo "$SERVICE_NAME has been uninstalled."
 ;;
