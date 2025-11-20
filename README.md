@@ -49,7 +49,7 @@
 ### 1. Clone the repository
 Now, let’s download the script that will install DataMorph for you. In your terminal, run:
 ```bash
-curl -o MorphusInstaller.sh https://raw.githubusercontent.com/infodatinc/morphus/main/MorphusInstaller.sh
+curl -o MorphusInstaller.sh https://raw.githubusercontent.com/infodatinc/morphus/compose_updates/MorphusInstaller.sh
 ```
 This saves the installer script as MorphusInstaller.sh.
 
