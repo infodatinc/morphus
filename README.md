@@ -1,16 +1,16 @@
 # DataMorph
 
 
- **DataMorph** is a secure, scalable application designed to automate and manage data transfers between various sources and destinations using configurable pipelines. The `MorphusInstaller.sh`  simplifies deployment and management of DataMorph application using Docker and Docker Compose. It offers guided setup and CLI-based lifecycle control.
+**DataMorph** is a secure, scalable application designed to automate and manage data transfers between various sources and destinations using configurable pipelines. The `MorphusInstaller.sh`  simplifies deployment and management of DataMorph application using Docker and Docker Compose. It offers guided setup and CLI-based lifecycle control.
 
 ---
 
 ##  Tech Stack
 
 - **Frontend:** Angular
-- **Backend:** Java-Springboot 
+- **Backend:** Java-Springboot
 - **Workflow Orchestration:** Apache Airflow
-- **Databases:** MySQL (backend) & PostgreSQL (Airflow)
+- **Databases:** PostgreSQL
 - **Containerization:** Docker + Docker Compose
 
 ---
@@ -19,122 +19,66 @@
 
 - **Operating System:** Linux
 - **RAM:** 8 GB
-- **Storage:** 30 GB  
+- **Storage:** 30 GB
 
 ### Required Tools
 
-| Tool             | Install Commands (Ubuntu/Debian)                                    | Confirm Installation         |
-|------------------|---------------------------------------------------------------------|------------------------------|
-| Docker           | `sudo apt install docker.io`                                        | `docker --version`           |
-| Docker Compose V2| `sudo apt install docker-compose-plugin`                            | `docker compose version`     |
-| lsof             | `sudo apt install lsof`                                             |                              |
-| jq               | `sudo apt install jq`                                               |                              |
-| mysql-client     | `sudo apt install mysql-client`                                     |                              |
+| Tool              | Install Commands (macOs)                                                              | Confirm Installation     |
+|-------------------|---------------------------------------------------------------------------------------|--------------------------|
+| Docker            | Download & install from Docker website:https://www.docker.com/products/docker-desktop | `docker --version`       |
+| Docker Compose V2 | (Included automatically with Docker Desktop on macOS — no install needed)             | `docker compose version` |
+| jq                | `brew install jq`                                                                     | `jq --version`           |
+| postgressql       | `brew install libpq` <br/> `brew link --force libpq`                                  | `psql --version`         |
 
-**Note:** Script execution may prompt for password to run certain commands with `sudo` priveleges when necessary.
+---
+
+| Tool              | Install Commands (Ubuntu/Debian)                                    | Confirm Installation         |
+|-------------------|---------------------------------------------------------------------|------------------------------|
+| Docker            | `sudo apt install docker.io`                                        | `docker --version`           |
+| Docker Compose V2 | `sudo apt install docker-compose-plugin`                            | `docker compose version`     |
+| lsof              | `sudo apt install lsof`                                             |                              |
+| jq                | `sudo apt install jq`                                               |                              |
+| postgressql       | `sudo apt-get install postgresql-client -y`                         |                              |
+
+**Note:** Script execution may prompt for password to run certain commands with `sudo` privileges when necessary.
 
 ---
 
 ##  Installation
 
 ### 1. Clone the repository
-
+Now, let’s download the script that will install DataMorph for you. In your terminal, run:
 ```bash
 curl -o MorphusInstaller.sh https://raw.githubusercontent.com/infodatinc/morphus/main/MorphusInstaller.sh
-cd <script_location>
-chmod +x MorphusInstaller.sh
 ```
+This saves the installer script as MorphusInstaller.sh.
+
+Next, make the script “executable” (so you can run it like a program):
+```bash
+chmod +x MorphusInstaller.sh 
+```
+
 
 ### 2. Run the Installer
 
+On macOS run:
 ```bash
-Mac OS:
 sh MorphusInstaller.sh
+```
 
-Linux OS:
+On Linux run:
+```bash
 ./MorphusInstaller.sh
 ```
+During installation, the script will ask you a few questions:
+- Check Docker → It will confirm Docker is available.
+- Pick a Port for the Web UI → Default is 80 (just press Enter if you’re not sure).
+- Database Setup →
+    - If you don’t already have a Postgres database, let the installer set up a new one.
+    - If you already have a Postgres database, you’ll need to enter details like hostname, port, username, and password.
 
-You will be prompted for:
-
-- Confirmation of Docker availability 
-- Port number (UI), Default port: 80
-- MySQL database setup (New or Existing)
-    - Existing Database (Hostname, Port, Username, Password)
-- Docker Compose validation
-  
-Note: When using an existing database, the application will connect using the provided details and automatically create a database named morphus if it does not already exist.
-The current version does not support SSL certificates for database authentication; this capability will be introduced in a future release.
-
-### 4. Version
-
-```bash
-morphus version
-```
-
-You can check the current version of Morphus Data that is installed on the system using this command.
-
----
-
-### 3. Start the Service
-
-```bash
-morphus start
-```
-
-During the first launch, you'll be asked to:
-
-1. Enter your organization’s domain name
-2. Confirm it using 'y' for yes or 'n' for no
-3. Provide your first name, last name, and company email
-4. A user account is created with the above details and a default password: `Welcome@123`
-
----
-
-##  Directory Structure
-
-```
-/var/morphus/
-├── logs/
-│   ├── ui/
-│   └── backend/
-│       ├── api-gateway/
-│       ├── auth/
-│       ├── user-access-management/
-│       ├── metadata/
-│       └── email-notification/
-├── database/
-│   └── mysql/                   # MySQL data storage
-├── docker-compose.yaml           # Main docker-compose file
-├── .env                          # Environment variables
-├── .ver                          # Version tracking file
-├── .org_created                   # Marker for org creation
-├── .user_created                  # Marker for user creation
-
-```
-
-```
-/var/airflow/
-├── dags/                         # DAGs for workflows
-├── logs/                         # Airflow logs
-├── config/                       # Configuration files
-├── plugins/                       # Custom plugins
-├── test/                          # Test files
-├── scripts/                       # Custom scripts
-├── api/                           # API-related files
-├── dag_json_data/                  # JSON data for DAGs
-
-
-```
-
-```
-/var/morphus_backup/
-├── v1.0/                           # Backup for version v1.0 (Previous version) before moving to v2.0(Next version)
-│   ├── morphus/                    # Backup of /var/morphus
-│   └── airflow/                    # Backup of /var/airflow
-                                    # Additional version backups
-
-```
+Note: The installer will create a database called morphus if it doesn’t already exist.
+Currently, it does not support SSL database connections (coming in a future version).
 
 ---
 
@@ -150,9 +94,44 @@ morphus update      # Upgrade to another version
 morphus rollback    # Rollsback to the previous version
 morphus uninstall   # Remove all containers and files
 ```
+
+---
+### Version
+
+To see what version of DataMorph you have installed, run
+```bash
+morphus version
+```
+
 ---
 
-##  Updating to a Newer Version
+### Start DataMorph
+
+Once installed you can start DataMorph by running:
+
+```bash
+morphus start
+```
+
+During the first launch, you'll be asked to:
+
+- Enter your organization’s domain name
+- Confirm it using 'y' for yes or 'n' for no
+- Provide your first name, last name, and company email
+- A user account is created for you automatically with default password: `Welcome@123`
+
+---
+
+###  Stop DataMorph
+
+```bash
+morphus stop
+```
+
+- Stops all the containers
+---
+
+###  Updating to a Newer Version
 
 ```bash
 morphus update
@@ -163,7 +142,7 @@ morphus update
 - Restarts containers with new version
 
 ---
-##  Rollback to a Previous Version
+###  Rollback to a Previous Version
 
 ```bash
 morphus rollback
@@ -172,20 +151,67 @@ morphus rollback
 - Rolls back the application to the most recent previously installed version.
 - Rollback is limited to only one version back (cannot revert to older versions beyond the immediate last one).
 - Automatically restarts all containers using the rolled-back version.
-** Note: Any changes made before rollback will be lost after rollback
+  ** Note: Any changes made before rollback will be lost after rollback
 
 ---
 
+
+
+##  Directory Structure
+
+```
+/var/morphus/
+├── logs/
+│   ├── ui/
+│   └── backend/
+│       ├── api-gateway/
+│       ├── auth/
+│       ├── user-access-management/
+│       ├── metadata/
+│       └── email-notification/
+├── database/
+│   └── postgres/                  # Postgres data storage
+├── docker-compose.yaml            # Main docker-compose file
+├── .env                           # Environment variables
+├── .ver                           # Version tracking file
+├── .org_created                   # Marker for org creation
+├── .user_created                  # Marker for user creation
+
+```
+
+```
+/var/airflow/
+├── dags/                          # DAGs for workflows
+├── logs/                          # Airflow logs
+├── config/                        # Configuration files
+├── plugins/                       # Custom plugins
+├── test/                          # Test files
+├── scripts/                       # Custom scripts
+├── api/                           # API-related files
+├── dag_json_data/                 # JSON data for DAGs
+
+
+```
+
+```
+/var/morphus_backup/
+├── v1.0/                # Backup for version v1.0 (Previous version) before moving to v2.0(Next version)
+│   ├── morphus/         # Backup of /var/morphus
+│   └── airflow/         # Backup of /var/airflow
+                         # Additional version backups
+
+```
+---
 ##  Troubleshooting
 
-| Issue                         | Solution                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| Docker Not Installed          | [Install Docker](https://docs.docker.com/get-docker/)                    |
-| Docker Not Running            | `sudo systemctl start docker`                                           |
-| Port Conflicts                | Script prompts for alternate ports if in use                            |
-| DB Connection Fails           | Ensure MySQL credentials and host/port are correct                      |
-| Permissions Issues            | Run with sudo where prompted                                            |
-| Docker Compose Validation     | YAML errors block deployment—check `docker-compose.yaml` structure      |
+| Issue                         | Solution                                                           |
+|------------------------------|--------------------------------------------------------------------|
+| Docker Not Installed          | [Install Docker](https://docs.docker.com/get-docker/)              |
+| Docker Not Running            | `sudo systemctl start docker`                                      |
+| Port Conflicts                | Script prompts for alternate ports if in use                       |
+| DB Connection Fails           | Ensure Postgres credentials and host/port are correct              |
+| Permissions Issues            | Run with sudo where prompted                                       |
+| Docker Compose Validation     | YAML errors block deployment—check `docker-compose.yaml` structure |
 
 ---
 
@@ -213,7 +239,7 @@ Log files are stored in:
 
 ##  Notes
 
-- Supports Linux and macOS 
+- Supports Linux and macOS
 - Docker images must be compatible with version mappings set in `.env`
 - First-time start performs DB insertions for organization and user creation
 
