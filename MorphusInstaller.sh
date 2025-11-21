@@ -68,6 +68,7 @@ AIRFLOW_DB_CONNECTOR=$AIRFLOW_DB_CONNECTOR
 AIRFLOW_DB_USER=$AIRFLOW_DB_USER
 AIRFLOW_DB_PASSWORD=$AIRFLOW_DB_PASSWORD
 AIRFLOW_DB_SERVER=$AIRFLOW_DB_SERVER
+SCRIPT_DB_SERVER=$SCRIPT_DB_SERVER
 AIRFLOW_DB_PORT=$AIRFLOW_DB_PORT
 AIRFLOW_DB_NAME=$AIRFLOW_DB_NAME
 BACKEND_DB_NAME=$BACKEND_DB_NAME
@@ -81,7 +82,6 @@ AIRFLOW_UID=$AIRFLOW_UID
 AIRFLOW_USER_USERNAME=$AIRFLOW_USER_USERNAME
 AIRFLOW_USER_PASSWORD=$AIRFLOW_USER_PASSWORD
 AIRFLOW_DAG_JSON_DATA_DIR=$AIRFLOW_DAG_JSON_DATA_DIR
-
 
 
 DOCKER_HUB_REPO_UI=$DOCKER_HUB_REPO-ui
@@ -162,6 +162,14 @@ prompt_db_details() {
     read -rp "Database Port: " AIRFLOW_DB_PORT
     read -rp "Database Username: " AIRFLOW_DB_USER
     read -rsp "Database Password: " AIRFLOW_DB_PASSWORD; echo
+
+
+    if [[ "$AIRFLOW_DB_SERVER" == "localhost" ]]; then
+        SCRIPT_DB_SERVER="localhost"
+        AIRFLOW_DB_SERVER="host.docker.internal"
+    else
+        SCRIPT_DB_SERVER=$AIRFLOW_DB_SERVER
+    fi
 }
 
 
@@ -312,7 +320,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
         echo
         prompt_db_details
         echo "Attempt $attempt/$MAX_RETRIES: Checking database connection..."
-        if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "SELECT 1;" >/dev/null 2>&1; then
+        if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "SELECT 1;" >/dev/null 2>&1; then
             echo "Connection successful to database host."
             ENABLE_POSTGRES=false
             write_env_file
@@ -325,8 +333,9 @@ for attempt in $(seq 1 $MAX_RETRIES); do
                 exit 1
             fi
         fi
-        if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'"; then
-            PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
+
+        if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'"; then
+            PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
             echo "Created database: $BACKEND_DB_NAME"
         else
             echo "Database already exists: $BACKEND_DB_NAME"
@@ -493,13 +502,26 @@ else
   # External Postgres path
 
   echo "Ensuring backend database '$BACKEND_DB_NAME' exists on external server..."
-  if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+  if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
       -U "$AIRFLOW_DB_USER" -d postgres -tAc \
       "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'" | grep -q 1; then
-    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
       -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
       "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
   fi
+
+
+  echo "Ensuring airflow database '$AIRFLOW_DB_NAME' exists on external server..."
+  if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+      -U "$AIRFLOW_DB_USER" -d postgres -tAc \
+      "SELECT 1 FROM pg_database WHERE datname = '$AIRFLOW_DB_NAME'" | grep -q 1; then
+    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+      -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
+      "CREATE DATABASE \"$AIRFLOW_DB_NAME\" ENCODING 'UTF8';"
+  fi
+
+
+
 
   # Start Liquibase (no profile here)
   docker compose up -d liquibase 2>/dev/null
@@ -549,7 +571,7 @@ if [[ "$ENABLE_POSTGRES" == "true" ]]; then
 #org_exists=$(docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p ${AIRFLOW_DB_PORT} -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -Atq -c "$org_exists_query" 2>/dev/null)
 out=$(docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -tAc "$org_exists_query") || { echo "Query failed"; exit 1; }
 else
-out=$(PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -tAc "$org_exists_query") || { echo "Query failed"; exit 1; }
+out=$(PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -tAc "$org_exists_query") || { echo "Query failed"; exit 1; }
 fi
 
 org_exists=$(echo "$out" | tr -d '[:space:]')
@@ -564,7 +586,7 @@ if [[ "$ENABLE_POSTGRES" == "true" ]]; then
 docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
  
 else
-PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
+PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
   
 fi
 
@@ -616,7 +638,7 @@ fi
 
 else
 echo "Registering user using native Postgres..."
-if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d "${BACKEND_DB_NAME:-postgres}" --single-transaction -v ON_ERROR_STOP=1 <<< "$register_user_query"; then
+if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d "${BACKEND_DB_NAME:-postgres}" --single-transaction -v ON_ERROR_STOP=1 <<< "$register_user_query"; then
 echo "Admin user '$email_address' registered successfully with default password 'Welcome@123'."
 echo "You can reset the password from the UI using the 'Forgot password' option."
 echo "$email_address" | sudo tee "$USER_MARKER" >/dev/null
@@ -689,7 +711,7 @@ BACKUP_DIR="$BACKUP_BASE/$CURRENT_VERSION"
 sudo mkdir -p "$BACKUP_DIR"
 
 # Backup Postgres DB
-sudo sh -c "docker exec -e PGPASSWORD=\"$AIRFLOW_DB_PASSWORD\" \"$AIRFLOW_DB_SERVER\" pg_dump -h localhost -p 5432 -U \"$AIRFLOW_DB_USER\" -d \"$BACKEND_DB_NAME\" -Fc > \"$BACKUP_DIR/morphus_db.dump\"" 2>/dev/null
+sudo sh -c "docker exec -e PGPASSWORD=\"$AIRFLOW_DB_PASSWORD\" \"$SCRIPT_DB_SERVER\" pg_dump -h localhost -p 5432 -U \"$AIRFLOW_DB_USER\" -d \"$BACKEND_DB_NAME\" -Fc > \"$BACKUP_DIR/morphus_db.dump\"" 2>/dev/null
 
 # --- Stop containers ---
 echo "Stopping Morphus..."
@@ -905,9 +927,9 @@ sudo rm -rf "$APP_DIR" "$INSTALL_DIR" "$AIRFLOW_DIR" "$BACKUP_BASE" /usr/local/b
 
 if [[ "$ENABLE_POSTGRES" != "true" ]]; then
   # terminate any sessions on the target DB
-  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$BACKEND_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$BACKEND_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
   # drop the database if it exists
-  if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$AIRFLOW_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$BACKEND_DB_NAME\";" >/dev/null 2>&1; then
+  if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$BACKEND_DB_NAME\";" >/dev/null 2>&1; then
     echo "Database dropped."
   else
     echo "Failed to drop database: $BACKEND_DB_NAME"
