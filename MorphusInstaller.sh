@@ -157,18 +157,25 @@ fetch_latest_release_info() {
 }
 
 
+
 prompt_db_details() {
     read -rp "Database Hostname: " AIRFLOW_DB_SERVER
     read -rp "Database Port: " AIRFLOW_DB_PORT
     read -rp "Database Username: " AIRFLOW_DB_USER
     read -rsp "Database Password: " AIRFLOW_DB_PASSWORD; echo
 
-
     if [[ "$AIRFLOW_DB_SERVER" == "localhost" ]]; then
         SCRIPT_DB_SERVER="localhost"
-        AIRFLOW_DB_SERVER="host.docker.internal"
+
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            AIRFLOW_DB_SERVER="host.docker.internal"
+        else
+            # Linux
+            AIRFLOW_DB_SERVER="172.17.0.1"
+        fi
     else
-        SCRIPT_DB_SERVER=$AIRFLOW_DB_SERVER
+        SCRIPT_DB_SERVER="$AIRFLOW_DB_SERVER"
     fi
 }
 
@@ -219,7 +226,7 @@ printf "${GREEN_TICK} Docker is available\n"
 
 ensure_docker_running
 echo ""
-#Check for UI port 
+#Check for UI port
 read -rp "Enter port to use for UI (Default 80): " UI_PORT
 UI_PORT=${UI_PORT:-80}
 
@@ -432,7 +439,7 @@ case "$(uname -s)" in
     *) echo "Unsupported OS. Supported: Linux, macOS." && exit 1 ;;
 esac
 
-#Sed command for OS Compatibility 
+#Sed command for OS Compatibility
 sed_replace() {
   local pattern=$1
   local file=$2
@@ -468,77 +475,77 @@ echo "Starting Morphus..."
 cd "$APP_DIR" || exit 1
 
 if [[ "$ENABLE_POSTGRES"  == "true" ]]; then
-  # 1) Start Postgres only
-  docker compose --profile with-postgres up -d postgres 2>/dev/null
+# 1) Start Postgres only
+docker compose --profile with-postgres up -d postgres 2>/dev/null
 
-  # 2) Wait for Postgres readiness (inside container)
-  echo "Waiting for Postgres to become ready..."
-  for i in {1..30}; do
-    if docker exec "$AIRFLOW_DB_SERVER" pg_isready -h localhost -p 5432 -U "$AIRFLOW_DB_USER" >/dev/null 2>&1; then
-      break
-    fi
-    sleep 2
-    if [ "$i" -eq 30 ]; then
-      echo "Postgres did not become ready in time."
-      exit 1
-    fi
-  done
+# 2) Wait for Postgres readiness (inside container)
+echo "Waiting for Postgres to become ready..."
+for i in {1..30}; do
+if docker exec "$AIRFLOW_DB_SERVER" pg_isready -h localhost -p 5432 -U "$AIRFLOW_DB_USER" >/dev/null 2>&1; then
+    break
+fi
+sleep 2
+if [ "$i" -eq 30 ]; then
+    echo "Postgres did not become ready in time."
+    exit 1
+fi
+done
 
-  # 3) Ensure backend DB exists (check OUTPUT, not exit code)
-  echo "Ensuring backend database '$BACKEND_DB_NAME' exists..."
-  if ! docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
-      psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d postgres -tAc \
-      "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'" | grep -q 1; then
-    docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
-      psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
-      "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
-  fi
+# 3) Ensure backend DB exists
+echo "Ensuring backend database '$BACKEND_DB_NAME' exists..."
+if ! docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
+psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d postgres -tAc \
+"SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'" | grep -q 1; then
+docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
+psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
+"CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
+fi
 
-  # 4) Now start Liquibase (it can target the backend DB)
-  docker compose --profile with-postgres up -d liquibase 2>/dev/null
-  echo "Backend DB check complete."
+# 4) Start Liquibase
+docker compose --profile with-postgres up -d liquibase 2>/dev/null
+echo "Backend DB check complete."
 
 else
-  # External Postgres path
+# External Postgres path
 
-  echo "Ensuring backend database '$BACKEND_DB_NAME' exists on external server..."
-  if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
-      -U "$AIRFLOW_DB_USER" -d postgres -tAc \
-      "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'" | grep -q 1; then
-    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
-      -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
-      "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
-  fi
-
-
-  echo "Ensuring airflow database '$AIRFLOW_DB_NAME' exists on external server..."
-  if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
-      -U "$AIRFLOW_DB_USER" -d postgres -tAc \
-      "SELECT 1 FROM pg_database WHERE datname = '$AIRFLOW_DB_NAME'" | grep -q 1; then
-    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
-      -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
-      "CREATE DATABASE \"$AIRFLOW_DB_NAME\" ENCODING 'UTF8';"
-  fi
-
-
-
+echo "Ensuring backend database '$BACKEND_DB_NAME' exists on external server..."
+if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+-U "$AIRFLOW_DB_USER" -d postgres -tAc \
+"SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'" | grep -q 1; then
+PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+-U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
+"CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
+fi
 
   # Start Liquibase (no profile here)
   docker compose up -d liquibase 2>/dev/null
   echo "Backend DB check complete."
 fi
-
-# Wait for Liquibase completion if you rely on it before app start
+# Wait for Liquibase completion
 docker wait morphus-liquibase >/dev/null 2>&1 || true
 
+
 echo "Starting Morphus services..."
-if ! docker compose up -d \
-    api-gateway auth user-access-management metadata email-notification \
-    redis postgres \
-    airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer \
-    web morphus-ui-angular; then
-    echo "Failed to start Morphus."
-    exit 1
+
+if [ "$ENABLE_POSTGRES" = "true" ]; then
+SERVICES=(
+api-gateway auth user-access-management metadata email-notification
+redis postgres
+airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer
+web morphus-ui-angular
+)
+else
+SERVICES=(
+api-gateway auth user-access-management metadata email-notification
+redis
+airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer
+web morphus-ui-angular
+)
+fi
+
+if ! docker compose up -d "${SERVICES[@]}"; then
+echo "Failed to start Morphus."
+exit 1
 fi
 
 
@@ -582,12 +589,10 @@ echo "Registering organization in the database..."
 register_org_query="INSERT INTO public.organizations (id, name, active) VALUES ('$org_name', '$org_name', TRUE);"
 
 if [[ "$ENABLE_POSTGRES" == "true" ]]; then
-#docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d "${BACKEND_DB_NAME:-postgres}" -v ON_ERROR_STOP=1 -c "$register_org_query" >/dev/null 2>&1
 docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
- 
 else
 PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
-  
+
 fi
 
 if [[ $? -eq 0 ]]; then
@@ -707,11 +712,19 @@ fi
 
 
 echo "Updating to $LATEST_VERSION..."
+
 BACKUP_DIR="$BACKUP_BASE/$CURRENT_VERSION"
 sudo mkdir -p "$BACKUP_DIR"
 
-# Backup Postgres DB
-sudo sh -c "docker exec -e PGPASSWORD=\"$AIRFLOW_DB_PASSWORD\" \"$SCRIPT_DB_SERVER\" pg_dump -h localhost -p 5432 -U \"$AIRFLOW_DB_USER\" -d \"$BACKEND_DB_NAME\" -Fc > \"$BACKUP_DIR/morphus_db.dump\"" 2>/dev/null
+if [ "$ENABLE_POSTGRES" = "true" ]; then
+  echo "Backing up Morphus DB from local Postgres container..."
+  sudo sh -c "docker exec -e PGPASSWORD=\"$AIRFLOW_DB_PASSWORD\" \"$AIRFLOW_DB_SERVER\" \
+    pg_dump -h localhost -p 5432 -U \"$AIRFLOW_DB_USER\" -d \"$BACKEND_DB_NAME\" -Fc \
+> \"$BACKUP_DIR/morphus_db.dump\"" 2>/dev/null || echo "Warning: DB backup failed."
+else
+  echo "Skipping container-based DB backup."
+fi
+
 
 # --- Stop containers ---
 echo "Stopping Morphus..."
@@ -773,37 +786,48 @@ if ! output=$(docker compose -f "$APP_DIR/docker-compose.yaml" config 2>&1); the
         exit 1
     fi
 fi
-# --- Restart containers ---
+
 echo "Starting Morphus..."
 cd "$APP_DIR" || exit 1
-if [ "$ENABLE_POSTGRES" = true ]; then
-    if docker compose --profile with-postgres up -d postgres liquibase 2>/dev/null; then
-        :
-    else
-        echo "Failed to start Morphus"
-        exit 1
-    fi
-else
-    if docker compose up -d liquibase 2>/dev/null; then
-        echo "Liquibase started successfully"
-    else
-        echo "Failed to start Morphus"
-        exit 1
-    fi
+
+if [ "$ENABLE_POSTGRES" = "true" ]; then
+if ! docker compose --profile with-postgres up -d postgres liquibase 2>/dev/null; then
+echo "Failed to start Postgres/Liquibase during update"
+exit 1
 fi
-docker wait morphus-liquibase >/dev/null 2>&1
-if docker compose up -d \
-    api-gateway auth user-access-management metadata email-notification \
-    redis postgres \
-    airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer \
-    web morphus-ui-angular >/dev/null 2>&1; then
-    echo "Update completed. Morphus $LATEST_VERSION is up and running."
-    check_service_status
 else
-    echo "Failed to start Morphus"
-    exit 1
+if ! docker compose up -d liquibase 2>/dev/null; then
+echo "Failed to start Liquibase during update"
+exit 1
+fi
 fi
 
+docker wait morphus-liquibase >/dev/null 2>&1 || true
+
+# 2) Bring up the rest of the services (postgres only when local)
+if [ "$ENABLE_POSTGRES" = "true" ]; then
+SERVICES=(
+api-gateway auth user-access-management metadata email-notification
+redis postgres
+airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer
+web morphus-ui-angular
+)
+else
+SERVICES=(
+api-gateway auth user-access-management metadata email-notification
+redis
+airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer
+web morphus-ui-angular
+)
+fi
+
+if docker compose up -d "${SERVICES[@]}" >/dev/null 2>&1; then
+echo "Update completed. Morphus $LATEST_VERSION is up and running."
+check_service_status
+else
+echo "Failed to start Morphus after update"
+exit 1
+fi
 ;;
 
 
@@ -863,32 +887,51 @@ set -a; source "$ENV_FILE"; set +a
 
 
 BACKUP_DIR="$BACKUP_BASE/$CURRENT_VERSION"
-# Restart containers
+
 echo "Restarting Morphus..."
 cd "$APP_DIR" || exit 1
-if [ "$ENABLE_POSTGRES" = true ]; then
-    if docker compose --profile with-postgres up -d postgres liquibase 2>/dev/null; then
-        :
-    else
-        echo "Failed to start Morphus"
-        exit 1
-    fi
-else
-    if docker compose up -d liquibase 2>/dev/null; then
-        echo "Liquibase started successfully"
-    else
-        echo "Failed to start Morphus"
-        exit 1
-    fi
+
+if [ "$ENABLE_POSTGRES" = "true" ]; then
+if ! docker compose --profile with-postgres up -d postgres liquibase 2>/dev/null; then
+echo "Failed to start Postgres/Liquibase during rollback"
+exit 1
 fi
-docker wait morphus-liquibase >/dev/null 2>&1
-if docker compose up -d \
-api-gateway auth user-access-management metadata email-notification \
-redis postgres \
-airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer \
-web morphus-ui-angular >/dev/null 2>&1; then
+else
+if ! docker compose up -d liquibase 2>/dev/null; then
+echo "Failed to start Liquibase during rollback"
+exit 1
+fi
+fi
+docker wait morphus-liquibase >/dev/null 2>&1 || true
+
+if [ "$ENABLE_POSTGRES" = "true" ]; then
+SERVICES=(
+api-gateway auth user-access-management metadata email-notification
+redis postgres
+airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer
+web morphus-ui-angular
+)
+else
+SERVICES=(
+api-gateway auth user-access-management metadata email-notification
+redis
+airflow-init airflow-webserver airflow-scheduler airflow-worker airflow-triggerer
+web morphus-ui-angular
+)
+fi
+
+if docker compose up -d "${SERVICES[@]}" >/dev/null 2>&1; then
 check_service_status
-sudo docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" pg_dump -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" --format=p --no-owner --no-privileges | sudo tee "$BACKUP_DIR/morphus_db.sql" >/dev/null 2>&1
+
+if [ "$ENABLE_POSTGRES" = "true" ]; then
+# Local Postgres: backup via docker exec
+sudo docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
+pg_dump -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" \
+--format=p --no-owner --no-privileges \
+| sudo tee "$BACKUP_DIR/morphus_db.sql" >/dev/null 2>&1
+else
+fi
+
 echo "Rollback completed. Morphus $PREVIOUS_VERSION is up and running"
 else
 echo "Rollback failed."
@@ -906,7 +949,7 @@ echo "Stopping and Removing Morphus."
 
 # Stop containers (no exit if cd fails)
 if [ -d "$APP_DIR" ]; then
-    (cd "$APP_DIR" && docker compose down >/dev/null 2>&1 || true)
+(cd "$APP_DIR" && docker compose down >/dev/null 2>&1 || true)
 fi
 
 
@@ -937,6 +980,7 @@ if [[ "$ENABLE_POSTGRES" != "true" ]]; then
 fi
 echo "$SERVICE_NAME has been uninstalled."
 ;;
+
 
 
 #################################z
