@@ -929,7 +929,6 @@ sudo docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
 pg_dump -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" \
 --format=p --no-owner --no-privileges \
 | sudo tee "$BACKUP_DIR/morphus_db.sql" >/dev/null 2>&1
-else
 fi
 
 echo "Rollback completed. Morphus $PREVIOUS_VERSION is up and running"
