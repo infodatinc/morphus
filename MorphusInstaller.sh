@@ -166,12 +166,12 @@ prompt_db_details() {
 
     if [[ "$AIRFLOW_DB_SERVER" == "localhost" ]]; then
         SCRIPT_DB_SERVER="localhost"
-
+    
         if [[ "$OSTYPE" == "darwin"* ]]; then
             # macOS
             AIRFLOW_DB_SERVER="host.docker.internal"
         else
-            # Linux
+            # Linux 
             AIRFLOW_DB_SERVER="172.17.0.1"
         fi
     else
@@ -226,7 +226,7 @@ printf "${GREEN_TICK} Docker is available\n"
 
 ensure_docker_running
 echo ""
-#Check for UI port
+#Check for UI port 
 read -rp "Enter port to use for UI (Default 80): " UI_PORT
 UI_PORT=${UI_PORT:-80}
 
@@ -439,7 +439,7 @@ case "$(uname -s)" in
     *) echo "Unsupported OS. Supported: Linux, macOS." && exit 1 ;;
 esac
 
-#Sed command for OS Compatibility
+#Sed command for OS Compatibility 
 sed_replace() {
   local pattern=$1
   local file=$2
@@ -491,7 +491,7 @@ if [ "$i" -eq 30 ]; then
 fi
 done
 
-# 3) Ensure backend DB exists
+# 3) Ensure backend DB exists 
 echo "Ensuring backend database '$BACKEND_DB_NAME' exists..."
 if ! docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" \
 psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d postgres -tAc \
@@ -501,7 +501,7 @@ psql -h localhost -p 5432 -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -
 "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
 fi
 
-# 4) Start Liquibase
+# 4) Start Liquibase 
 docker compose --profile with-postgres up -d liquibase 2>/dev/null
 echo "Backend DB check complete."
 
@@ -521,12 +521,12 @@ fi
   docker compose up -d liquibase 2>/dev/null
   echo "Backend DB check complete."
 fi
-# Wait for Liquibase completion
+# Wait for Liquibase completion 
 docker wait morphus-liquibase >/dev/null 2>&1 || true
 
 
 echo "Starting Morphus services..."
-
+ 
 if [ "$ENABLE_POSTGRES" = "true" ]; then
 SERVICES=(
 api-gateway auth user-access-management metadata email-notification
@@ -592,7 +592,7 @@ if [[ "$ENABLE_POSTGRES" == "true" ]]; then
 docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
 else
 PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
-
+  
 fi
 
 if [[ $? -eq 0 ]]; then
@@ -715,7 +715,7 @@ echo "Updating to $LATEST_VERSION..."
 
 BACKUP_DIR="$BACKUP_BASE/$CURRENT_VERSION"
 sudo mkdir -p "$BACKUP_DIR"
-
+ 
 if [ "$ENABLE_POSTGRES" = "true" ]; then
   echo "Backing up Morphus DB from local Postgres container..."
   sudo sh -c "docker exec -e PGPASSWORD=\"$AIRFLOW_DB_PASSWORD\" \"$AIRFLOW_DB_SERVER\" \
@@ -789,7 +789,7 @@ fi
 
 echo "Starting Morphus..."
 cd "$APP_DIR" || exit 1
-
+ 
 if [ "$ENABLE_POSTGRES" = "true" ]; then
 if ! docker compose --profile with-postgres up -d postgres liquibase 2>/dev/null; then
 echo "Failed to start Postgres/Liquibase during update"
@@ -890,7 +890,7 @@ BACKUP_DIR="$BACKUP_BASE/$CURRENT_VERSION"
 
 echo "Restarting Morphus..."
 cd "$APP_DIR" || exit 1
-
+ 
 if [ "$ENABLE_POSTGRES" = "true" ]; then
 if ! docker compose --profile with-postgres up -d postgres liquibase 2>/dev/null; then
 echo "Failed to start Postgres/Liquibase during rollback"
