@@ -28,6 +28,8 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/api:/var/airflow/api
     - ${AIRFLOW_PROJ_DIR:-.}/dag_json_data:/var/airflow/dag_json_data
   user: "${AIRFLOW_UID:-50000}:0"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   depends_on:
     &airflow-common-depends-on
     redis:
