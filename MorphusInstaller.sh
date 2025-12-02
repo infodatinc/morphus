@@ -347,6 +347,13 @@ for attempt in $(seq 1 $MAX_RETRIES); do
         else
             echo "Database already exists: $BACKEND_DB_NAME"
         fi
+
+        if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$AIRFLOW_DB_NAME'"; then
+                    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$AIRFLOW_DB_NAME\" ENCODING 'UTF8';"
+                    echo "Created database: $AIRFLOW_DB_NAME"
+                else
+                    echo "Database already exists: $AIRFLOW_DB_NAME"
+        fi
     else
         echo "Invalid choice. Select 1 or 2."
         read -r db_option
@@ -516,6 +523,17 @@ PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PO
 -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
 "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
 fi
+
+echo "Ensuring Airflow database '$AIRFLOW_DB_NAME' exists on external server..."
+if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+-U "$AIRFLOW_DB_USER" -d postgres -tAc \
+"SELECT 1 FROM pg_database WHERE datname = '$AIRFLOW_DB_NAME'" | grep -q 1; then
+  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" \
+  -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c \
+  "CREATE DATABASE \"$AIRFLOW_DB_NAME\" ENCODING 'UTF8';"
+fi
+
+
 
   # Start Liquibase (no profile here)
   docker compose up -d liquibase 2>/dev/null

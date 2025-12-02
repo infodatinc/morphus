@@ -204,14 +204,15 @@ morphus rollback
 ---
 ##  Troubleshooting
 
-| Issue                         | Solution                                                           |
-|------------------------------|--------------------------------------------------------------------|
-| Docker Not Installed          | [Install Docker](https://docs.docker.com/get-docker/)              |
-| Docker Not Running            | `sudo systemctl start docker`                                      |
-| Port Conflicts                | Script prompts for alternate ports if in use                       |
-| DB Connection Fails           | Ensure Postgres credentials and host/port are correct              |
-| Permissions Issues            | Run with sudo where prompted                                       |
-| Docker Compose Validation     | YAML errors block deployment—check `docker-compose.yaml` structure |
+| Issue                                                 | Solution / Cause                                                   |
+|-------------------------------------------------------|--------------------------------------------------------------------|
+| Docker Not Installed                                  | [Install Docker](https://docs.docker.com/get-docker/)              |
+| Docker Not Running                                    | `sudo systemctl start docker`                                      |
+| Port Conflicts                                        | Script prompts for alternate ports if in use                       |
+| DB Connection Fails                                   | Ensure Postgres credentials and host/port are correct              |
+| Permissions Issues                                    | Run with sudo where prompted                                       |
+| Docker Compose Validation                             | YAML errors block deployment—check `docker-compose.yaml` structure |
+| Containers keep restarting without any error messages | Check if there is enough space on the server                       |
 
 ---
 
