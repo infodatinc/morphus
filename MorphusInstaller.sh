@@ -187,7 +187,16 @@ ensure_docker_running() {
         ((attempt++))
         echo "Docker not running. Attempt $attempt to start docker..."
         if [[ "$OSTYPE" == "linux-gnu" ]]; then
-            sudo systemctl start docker
+            if command -v systemctl &>/dev/null; then
+              # systemd-based Linux (Debian/Ubuntu etc.)
+              sudo systemctl start docker || true
+            elif command -v service &>/dev/null; then
+              # Older/sysvinit style systems
+              sudo service docker start || true
+            else
+              echo "Could not detect a service manager. Please start Docker manually and rerun this script."
+              exit 1
+            fi
         else
             open --background -a Docker
         fi
@@ -986,18 +995,30 @@ sudo chown -R $(whoami):$(whoami) "$APP_DIR" "$INSTALL_DIR" "$AIRFLOW_DIR" 2>/de
 sudo rm -rf "$APP_DIR" "$INSTALL_DIR" "$AIRFLOW_DIR" "$BACKUP_BASE" /usr/local/bin/morphus || true
 
 if [[ "$ENABLE_POSTGRES" != "true" ]]; then
-  # terminate any sessions on the target DB
-  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$BACKEND_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
-  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$AIRFLOW_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
-  # drop the database if it exists
-  if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$BACKEND_DB_NAME\";" >/dev/null 2>&1; then
-    echo ""
-  if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$AIRFLOW_DB_NAME\";" >/dev/null 2>&1; then
-    echo "Database dropped."
+  # terminate any sessions on the target DBs
+  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$BACKEND_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+
+  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$AIRFLOW_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+
+  # Drop backend DB
+  if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 \
+      -c "DROP DATABASE IF EXISTS \"$BACKEND_DB_NAME\";" >/dev/null 2>&1; then
+    echo "Database dropped: $BACKEND_DB_NAME"
   else
     echo "Failed to drop database: $BACKEND_DB_NAME"
   fi
+
+  # Drop Airflow DB
+  if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 \
+      -c "DROP DATABASE IF EXISTS \"$AIRFLOW_DB_NAME\";" >/dev/null 2>&1; then
+    echo "Database dropped: $AIRFLOW_DB_NAME"
+  else
+    echo "Failed to drop database: $AIRFLOW_DB_NAME"
+  fi
 fi
+
 echo "$SERVICE_NAME has been uninstalled."
 ;;
 

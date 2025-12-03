@@ -23,6 +23,8 @@
 
 ### Required Tools
 
+On macOS run:
+
 | Tool              | Install Commands (macOs)                                                              | Confirm Installation     |
 |-------------------|---------------------------------------------------------------------------------------|--------------------------|
 | Docker            | Download & install from Docker website:https://www.docker.com/products/docker-desktop | `docker --version`       |
@@ -32,14 +34,49 @@
 
 ---
 
-| Tool              | Install Commands (Ubuntu/Debian)                                    | Confirm Installation         |
-|-------------------|---------------------------------------------------------------------|------------------------------|
-| Docker            | `sudo apt install docker.io`                                        | `docker --version`           |
-| Docker Compose V2 | `sudo apt install docker-compose-plugin`                            | `docker compose version`     |
-| lsof              | `sudo apt install lsof`                                             |                              |
-| jq                | `sudo apt install jq`                                               |                              |
-| postgressql       | `sudo apt-get install postgresql-client -y`                         |                              |
+On Linux run:
 
+| Tool              | Install Commands (Ubuntu/Debian)           | Confirm Installation     |
+| ----------------- |--------------------------------------------| ------------------------ |
+| Docker            | *See Detailed Docker install table below*  | `docker --version`       |
+| Docker Compose V2 | *(Comes with Docker CE repo installation)* | `docker compose version` |
+| jq                | `sudo apt install jq -y`                   | `jq --version`           |
+| lsof              | `sudo apt install lsof -y`                 | `lsof -v`                |
+| PostgreSQL Client | `sudo apt install postgresql-client -y`    | `psql --version`         |
+
+
+
+#### Detailed Docker install Linux:
+
+Install pre-requisites for Docker 
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg
+```
+Add Docker’s official Debian repo (bookworm)
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/debian/gpg \
+| sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+```
+
+```bash
+echo \
+"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+https://download.docker.com/linux/$(. /etc/os-release && echo $ID) \
+$(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+| sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+```bash
+sudo apt update
+```
+Install Docker Engine + Compose v2 plugin
+```bash
+sudo apt install -y docker-ce docker-ce-cli containerd.io \
+docker-buildx-plugin docker-compose-plugin
+```
 **Note:** Script execution may prompt for password to run certain commands with `sudo` privileges when necessary.
 
 ---
