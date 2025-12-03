@@ -988,8 +988,11 @@ sudo rm -rf "$APP_DIR" "$INSTALL_DIR" "$AIRFLOW_DIR" "$BACKUP_BASE" /usr/local/b
 if [[ "$ENABLE_POSTGRES" != "true" ]]; then
   # terminate any sessions on the target DB
   PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$BACKEND_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+  PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$AIRFLOW_DB_NAME' AND pid <> pg_backend_pid();" >/dev/null 2>&1
   # drop the database if it exists
   if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$BACKEND_DB_NAME\";" >/dev/null 2>&1; then
+    echo ""
+  if PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$AIRFLOW_DB_NAME\";" >/dev/null 2>&1; then
     echo "Database dropped."
   else
     echo "Failed to drop database: $BACKEND_DB_NAME"
