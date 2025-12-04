@@ -34,8 +34,6 @@ x-airflow-common:
     &airflow-common-depends-on
     redis:
       condition: service_healthy
-    # postgres:
-    #   condition: service_healthy
 
 
 services:
@@ -61,49 +59,6 @@ services:
         profiles: ["with-postgres"]
         restart: unless-stopped
 
-    # mysql:
-    #     image: mysql:8.0.31
-    #     container_name: ${DOCKER_CONTAINER_NAME}-mysql
-    #     hostname: morphus-mysql
-    #     command: --default-authentication-plugin=mysql_native_password
-    #     environment:
-    #         MYSQL_ROOT_PASSWORD: ${MYSQL_DB_PASSWORD}
-    #         MYSQL_PASSWORD: ${MYSQL_DB_PASSWORD}
-    #         MYSQL_DATABASE: ${MYSQL_DB_NAME}
-    #     volumes:
-    #         - morphus-mysql:/var/lib/mysql
-    #         - /var/morphus/certs:/app/certs:ro 
-    #     networks:
-    #         - morphus
-    #     restart: unless-stopped
-    #     profiles: ["with-mysql"]
-    #     healthcheck:
-    #         test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_DB_PASSWORD}"]
-    #         interval: 10s
-    #         timeout: 5s
-    #         retries: 5
-
-    #---------------------------------------Liquibase----------------------------------------
-    # liquibase:
-    #     container_name: ${DOCKER_CONTAINER_NAME_BE}-liquibase
-    #     image: ${DOCKER_HUB_REPO_BE}-liquibase:${DOCKER_IMAGE_TAG_BE}
-    #     env_file:
-    #         - .env
-    #     hostname: ${DOCKER_CONTAINER_NAME_BE}-liquibase
-    #     volumes:
-    #         - /var/morphus/logs/liquibase:/app/logs
-    #     restart: "no"
-    #     depends_on:
-    #         mysql:
-    #             condition: service_healthy
-    #     networks:
-    #         - morphus
-    #     logging:
-    #         driver: "json-file"
-    #         options:
-    #             max-size: "500m"
-    #             max-file: "1"
-        
     liquibase:
         image: ${DOCKER_HUB_REPO_BE}-liquibase:${DOCKER_IMAGE_TAG_BE}
         container_name: ${DOCKER_CONTAINER_NAME}-liquibase
@@ -149,8 +104,6 @@ services:
                 condition: service_completed_successfully
 
 
-
-
     auth:
         container_name: ${DOCKER_CONTAINER_NAME_BE}-auth
         image: ${DOCKER_HUB_REPO_BE}-auth:${DOCKER_IMAGE_TAG_BE}
@@ -178,7 +131,6 @@ services:
         depends_on:
             liquibase:
                 condition: service_completed_successfully
-
 
 
     user-access-management:
@@ -236,6 +188,7 @@ services:
             liquibase:
                 condition: service_completed_successfully
 
+
     email-notification:
         container_name: ${DOCKER_CONTAINER_NAME_BE}-email-notification
         image: ${DOCKER_HUB_REPO_BE}-email-notification:${DOCKER_IMAGE_TAG_BE}
@@ -262,7 +215,8 @@ services:
         depends_on:
             liquibase:
                 condition: service_completed_successfully
-       
+
+
     # # -------------------------------------Airflow-------------------------------------
     redis:
         container_name: ${DOCKER_CONTAINER_NAME}-redis
@@ -278,6 +232,7 @@ services:
         networks:
             - morphus
         restart: always
+
 
     airflow-webserver:
         <<: *airflow-common
@@ -338,14 +293,13 @@ services:
             airflow-init:
                 condition: service_completed_successfully
 
+
     airflow-worker:
         <<: *airflow-common
         command: celery worker
         container_name: ${DOCKER_CONTAINER_NAME_AF}-worker
         healthcheck:
-            test:
-            - "CMD-SHELL"
-            - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+            test: ["CMD-SHELL",'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"']
             interval: 30s
             timeout: 10s
             retries: 5
@@ -362,6 +316,7 @@ services:
             <<: *airflow-common-depends-on
             airflow-init:
                 condition: service_completed_successfully
+
 
     airflow-triggerer:
         <<: *airflow-common
@@ -382,6 +337,7 @@ services:
             <<: *airflow-common-depends-on
             airflow-init:
                 condition: service_completed_successfully
+
 
     airflow-init:
         <<: *airflow-common
@@ -466,14 +422,13 @@ services:
         networks:
             - morphus
 
+
     flower:
         <<: *airflow-common
         command: celery flower
         container_name: ${DOCKER_CONTAINER_NAME_AF}-flower
         profiles:
             - flower
-        # ports:
-        #     - "5555:5555"
         healthcheck:
             test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
             interval: 30s
@@ -502,9 +457,7 @@ services:
                 condition: service_completed_successfully
             redis:
                 condition: service_healthy
-            # postgres:
-            #     condition: service_healthy
-       
+
 
  #---------------------------------------UI----------------------------------------
     morphus-ui-angular:                                     

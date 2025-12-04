@@ -42,8 +42,6 @@ AIRFLOW_DB_SERVER="morphus-airflow-postgres"
 AIRFLOW_DB_PORT=5432
 AIRFLOW_DB_NAME="morphus_postgres"
 BACKEND_DB_NAME="morphus"
-
-
 REDIS_PORT=6379
 AIRFLOW_UID=5000
 AIRFLOW_WEB_SECRET="your_secret_key_here"
@@ -59,6 +57,7 @@ UI_PORT=80
 ##########################################
 #              HELPER FUNCTIONS          #
 ##########################################
+
 # Function to write environment variables to the .env file
 write_env_file() {
     cat <<EOF | sudo tee "$ENV_FILE" > /dev/null
@@ -166,7 +165,6 @@ prompt_db_details() {
 
     if [[ "$AIRFLOW_DB_SERVER" == "localhost" ]]; then
         SCRIPT_DB_SERVER="localhost"
-    
         if [[ "$OSTYPE" == "darwin"* ]]; then
             # macOS
             AIRFLOW_DB_SERVER="host.docker.internal"
@@ -257,8 +255,7 @@ sudo mkdir -p \
   "$APP_DIR/logs/backend/auth" \
   "$APP_DIR/logs/backend/user-access-management" \
   "$APP_DIR/logs/backend/metadata" \
-  "$APP_DIR/logs/backend/email-notification" \
-#  "$APP_DIR/database/AIRFLOW_DB_PORT"
+  "$APP_DIR/logs/backend/email-notification"
 sudo chmod -R 777 "$APP_DIR"
 
 # Create Airflow directories
@@ -350,15 +347,15 @@ for attempt in $(seq 1 $MAX_RETRIES); do
             fi
         fi
 
-        if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'"; then
-            PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';"
+        if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$BACKEND_DB_NAME'"  >/dev/null 2>&1; then
+            PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$BACKEND_DB_NAME\" ENCODING 'UTF8';" >/dev/null 2>&1
             echo "Created database: $BACKEND_DB_NAME"
         else
             echo "Database already exists: $BACKEND_DB_NAME"
         fi
 
-        if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$AIRFLOW_DB_NAME'"; then
-                    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$AIRFLOW_DB_NAME\" ENCODING 'UTF8';"
+        if ! PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$AIRFLOW_DB_NAME'" >/dev/null 2>&1; then
+                    PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "$AIRFLOW_DB_PORT" -U "$AIRFLOW_DB_USER" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$AIRFLOW_DB_NAME\" ENCODING 'UTF8';" >/dev/null 2>&1
                     echo "Created database: $AIRFLOW_DB_NAME"
                 else
                     echo "Database already exists: $AIRFLOW_DB_NAME"
@@ -602,7 +599,6 @@ echo "Please re-enter the details."
 done
 org_exists_query="SELECT COUNT(*) AS org_count FROM public.organizations WHERE name = '$org_name';"
 if [[ "$ENABLE_POSTGRES" == "true" ]]; then
-#org_exists=$(docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p ${AIRFLOW_DB_PORT} -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -Atq -c "$org_exists_query" 2>/dev/null)
 out=$(docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -tAc "$org_exists_query") || { echo "Query failed"; exit 1; }
 else
 out=$(PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -tAc "$org_exists_query") || { echo "Query failed"; exit 1; }
@@ -619,7 +615,6 @@ if [[ "$ENABLE_POSTGRES" == "true" ]]; then
 docker exec -e PGPASSWORD="$AIRFLOW_DB_PASSWORD" "$AIRFLOW_DB_SERVER" psql -h localhost -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
 else
 PGPASSWORD="$AIRFLOW_DB_PASSWORD" psql -h "$SCRIPT_DB_SERVER" -p "${AIRFLOW_DB_PORT:-5432}" -U "$AIRFLOW_DB_USER" -d "$BACKEND_DB_NAME" -v org_name="$org_name" -v ON_ERROR_STOP=1 -c "$register_org_query" || { echo "Insert failed"; exit 1; }
-  
 fi
 
 if [[ $? -eq 0 ]]; then
@@ -863,8 +858,6 @@ fi
 ##### Rollback Containers ######
 ################################
 
-
-
 rollback)
 
 sudo touch "$ENV_FILE"
@@ -977,9 +970,6 @@ echo "Stopping and Removing Morphus."
 if [ -d "$APP_DIR" ]; then
 (cd "$APP_DIR" && docker compose down >/dev/null 2>&1 || true)
 fi
-
-
-
 
 docker ps -a --format "{{.Names}}" | grep '^morphus-' | xargs -r docker stop >/dev/null 2>&1
 docker ps -a --format "{{.Names}}" | grep '^morphus-' | xargs -r docker rm >/dev/null 2>&1
